@@ -1,11 +1,29 @@
+import { spawn } from "node:child_process";
 import { chromium, expect, test, type Browser, type Page } from "@playwright/test";
 import { waitForKuroneKoAppPage } from "../../src/e2e/appPage";
-import { readProcessInfo, waitForShutdown } from "./shutdown-observability";
+import { closeOwnedVisibleWindow, isKuroneKoAppWindow } from "./native-close";
+import {
+  cleanupProcessInfoFile,
+  getRemoteDebuggingPort,
+  isCdpAvailable,
+  isTauriAppProcessInfo,
+  PROCESS_INFO_FILE,
+  readProcessInfo,
+  startAppProcessTracking,
+  stopOwnedLauncher,
+  waitForCdp,
+  waitForLauncherProcessInfo,
+  waitForShutdown,
+  waitForTauriAppProcess,
+  writeProcessInfo,
+  type TauriDevProcessInfo,
+} from "./shutdown-observability";
 
 const CDP_ENDPOINT = process.env.KURONE_KO_CDP_ENDPOINT ?? "http://127.0.0.1:9222";
-const PID_FILE = "test-results/kurone-ko-tauri-dev.json";
+const REMOTE_DEBUGGING_PORT = getRemoteDebuggingPort(CDP_ENDPOINT);
 
 interface KuroneKoE2EDriver {
+  getAudioEvidence: () => Promise<KuroneKoAudioEvidence | null> | KuroneKoAudioEvidence | null;
   getWindowLabel: () => Promise<string> | string;
   isWindowVisible: (label: string) => Promise<boolean> | boolean;
   getMusicState: () => Promise<KuroneKoMusicState> | KuroneKoMusicState;
@@ -23,6 +41,11 @@ interface KuroneKoMusicState {
   ducked: boolean;
   enabled: boolean;
   isPlaying: boolean;
+}
+
+interface KuroneKoAudioEvidence {
+  paused: boolean;
+  source: string;
 }
 
 interface KuroneKoWindow extends Window {
@@ -99,6 +122,14 @@ const getViewportSize = async (page: Page): Promise<typeof TIMER_VIEWPORT | type
     width: window.innerWidth,
   }));
 
+const dismissDashboardOnboarding = async (dashboardPage: Page): Promise<void> => {
+  const onboarding = dashboardPage.getByRole("dialog", { name: "Welcome to KURONE-KO" });
+  if (await onboarding.isVisible()) {
+    await dashboardPage.keyboard.press("Escape");
+    await expect(onboarding).toBeHidden();
+  }
+};
+
 const resetE2EState = async (page: Page) => {
   await page.evaluate(async () => {
     const driver = (window as KuroneKoWindow).__KURONE_KO_E2E__;
@@ -109,6 +140,11 @@ const resetE2EState = async (page: Page) => {
 
     await driver.reset();
   });
+};
+
+const prepareTimerForE2E = async (timerPage: Page): Promise<void> => {
+  await timerPage.getByRole("button", { name: "Show timer" }).click();
+  await resetE2EState(timerPage);
 };
 
 const setFastDurations = async (page: Page, focusDurationSeconds: number) => {
@@ -128,6 +164,17 @@ const setFastDurations = async (page: Page, focusDurationSeconds: number) => {
     });
   }, focusDurationSeconds);
 };
+
+const getAudioEvidence = async (page: Page): Promise<KuroneKoAudioEvidence | null> =>
+  page.evaluate(async () => {
+    const driver = (window as KuroneKoWindow).__KURONE_KO_E2E__;
+
+    if (driver === undefined) {
+      throw new Error("KURONE-KO E2E driver is not available");
+    }
+
+    return driver.getAudioEvidence();
+  });
 
 const getMusicState = async (page: Page): Promise<KuroneKoMusicState> =>
   page.evaluate(async () => {
@@ -162,17 +209,29 @@ const isWindowVisible = async (page: Page, label: string): Promise<boolean> =>
     return driver.isWindowVisible(windowLabel);
   }, label);
 
-const assertKuroneKoShutdown = async () => {
-  const processInfo = await readProcessInfo(PID_FILE);
+const logShutdownStage = (stage: "dashboardExit" | "nativeDashboard" | "nativeTimer", state: "start" | "complete", processInfo: TauriDevProcessInfo | null): void => {
+  const identity = processInfo === null
+    ? "identity unavailable"
+    : `launcher ${processInfo.launcherPid} (${processInfo.launcherCreationTime}); app ${processInfo.appPid ?? "not recorded"}${processInfo.appCreationTime === undefined ? "" : ` (${processInfo.appCreationTime})`}`;
+  console.info(`[shutdown-stage] ${stage} ${state}; ${identity}`);
+};
 
-  if (processInfo === null) {
-    throw new Error("Expected Tauri dev pid metadata for shutdown assertion");
+const assertKuroneKoShutdown = async () => {
+  const processInfo = await readProcessInfo(PROCESS_INFO_FILE);
+
+  if (processInfo === null || !isTauriAppProcessInfo(processInfo)) {
+    throw new Error("Expected Tauri app pid metadata for shutdown assertion");
   }
 
-  await waitForShutdown(processInfo.pid, CDP_ENDPOINT);
+  await waitForShutdown(processInfo, CDP_ENDPOINT);
 };
 
 test.describe("KURONE-KO native widget smoke", () => {
+  test("native close selection excludes internal Tao windows", async () => {
+    expect(isKuroneKoAppWindow("Tauri Window", "KURONE-KO")).toBe(true);
+    expect(isKuroneKoAppWindow("Tao Thread Event Target", "")).toBe(false);
+    expect(isKuroneKoAppWindow("Tauri Window", "Unrelated Window")).toBe(false);
+  });
   let browser: Browser;
   let page: Page;
 
@@ -199,9 +258,7 @@ test.describe("KURONE-KO native widget smoke", () => {
 
     await expect.poll(() => isWindowVisible(dashboardPage, "dashboard")).toBe(true);
     await expect(dashboardPage.getByLabel("KURONE-KO dashboard")).toBeVisible();
-    if (await dashboardPage.getByRole("dialog", { name: "Welcome to KURONE-KO" }).isVisible()) {
-      await dashboardPage.keyboard.press("Escape");
-    }
+    await dismissDashboardOnboarding(dashboardPage);
 
     const backToDashboard = dashboardPage.getByRole("button", { name: "Back to dashboard" });
     if (await backToDashboard.isVisible()) {
@@ -214,8 +271,7 @@ test.describe("KURONE-KO native widget smoke", () => {
     await expect.poll(() => isWindowVisible(page, "timer")).toBe(true);
     await expect.poll(() => isWindowVisible(page, "dashboard")).toBe(false);
     await expect(page.getByLabel("KURONE-KO focus timer; drag empty areas to move")).toBeVisible();
-    await page.getByRole("button", { name: "Show timer" }).click();
-    await resetE2EState(page);
+    await prepareTimerForE2E(page);
   });
 
   test("opens dashboard visibly at launch and keeps the timer hidden until selected", async () => {
@@ -415,16 +471,104 @@ test.describe("KURONE-KO native widget smoke", () => {
     await expect(page.getByRole("button", { name: "Play Kurone-ko Playlist" })).toHaveAttribute("aria-pressed", "false");
   });
 
-  test("exits app process after dashboard Exit, so no hidden window can linger", async () => {
+  const relaunchForNativeClose = async (): Promise<Page> => {
+    await browser.close();
+    if (await isCdpAvailable(CDP_ENDPOINT)) {
+      throw new Error(`Refusing to launch while CDP is already available at ${CDP_ENDPOINT}`);
+    }
+
+    const childProcess = spawn("npm", ["run", "tauri", "dev"], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        KURONE_KO_E2E: "1",
+        VITE_KURONE_KO_E2E: "1",
+        WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${REMOTE_DEBUGGING_PORT}`,
+      },
+      stdio: "inherit",
+      shell: process.platform === "win32",
+    });
+    if (childProcess.pid === undefined) throw new Error("Failed to relaunch test-owned tauri dev process");
+    let launchedInfo = null;
+    try {
+      launchedInfo = await waitForLauncherProcessInfo(childProcess.pid);
+      await writeProcessInfo(PROCESS_INFO_FILE, launchedInfo);
+      await waitForCdp(childProcess, CDP_ENDPOINT);
+      launchedInfo = await waitForTauriAppProcess(childProcess.pid);
+      await writeProcessInfo(PROCESS_INFO_FILE, launchedInfo);
+      browser = await chromium.connectOverCDP(CDP_ENDPOINT);
+    } catch (error) {
+      if (launchedInfo !== null) {
+        try {
+          await stopOwnedLauncher(launchedInfo);
+          await cleanupProcessInfoFile(PROCESS_INFO_FILE);
+        } catch (cleanupError) {
+          console.error(`[e2e relaunch] Could not confirm cleanup of owned launcher ${launchedInfo.launcherPid}; preserving ${PROCESS_INFO_FILE}: ${String(cleanupError)}`);
+        }
+      }
+      throw error;
+    }
+    const dashboardPage = await waitForKuroneKoAppPage(browser, { label: "dashboard" });
+    await expect(dashboardPage.getByLabel("KURONE-KO dashboard")).toBeVisible();
+    await dismissDashboardOnboarding(dashboardPage);
+    const processInfo = await readProcessInfo(PROCESS_INFO_FILE);
+    if (processInfo === null || !isTauriAppProcessInfo(processInfo)) throw new Error("Expected process identity for relaunched test app");
+    await startAppProcessTracking(processInfo);
+    return dashboardPage;
+  };
+
+  test("exits app process after dashboard Exit and native dashboard/timer close with real playlist audio", async () => {
+    test.setTimeout(180_000);
+    const initialProcess = await readProcessInfo(PROCESS_INFO_FILE);
+    if (initialProcess === null || !isTauriAppProcessInfo(initialProcess)) throw new Error("Expected process identity for dashboard Exit");
+    await startAppProcessTracking(initialProcess);
     await page.getByRole("button", { name: "Play Kurone-ko Playlist" }).click();
     await expect(page.getByRole("button", { name: "Stop Kurone-ko Playlist" })).toHaveAttribute("aria-pressed", "true");
+    await expect.poll(() => getMusicState(page)).toMatchObject({ enabled: true, isPlaying: true });
+    await expect.poll(() => getAudioEvidence(page)).toMatchObject({ paused: false });
+    expect((await getAudioEvidence(page))?.source).toContain("/audio/kuroneko-playlist/");
 
     await page.getByRole("button", { name: "Return to dashboard" }).click();
     const dashboardPage = await waitForKuroneKoAppPage(browser, { label: "dashboard" });
     await expect(dashboardPage.getByLabel("KURONE-KO dashboard")).toBeVisible();
 
+    logShutdownStage("dashboardExit", "start", initialProcess);
     await dashboardPage.getByRole("button", { name: "Exit Kurone-ko Timer" }).click();
-
     await assertKuroneKoShutdown();
+    logShutdownStage("dashboardExit", "complete", initialProcess);
+
+    const nativeDashboardPage = await relaunchForNativeClose();
+    await nativeDashboardPage.getByRole("button", { name: "Start Session" }).click();
+    const dashboardCloseTimerPage = await waitForKuroneKoAppPage(browser, { label: "timer" });
+    await prepareTimerForE2E(dashboardCloseTimerPage);
+    await dashboardCloseTimerPage.getByRole("button", { name: "Play Kurone-ko Playlist" }).click();
+    await expect.poll(() => getMusicState(dashboardCloseTimerPage)).toMatchObject({ enabled: true, isPlaying: true });
+    await expect.poll(() => getAudioEvidence(dashboardCloseTimerPage)).toMatchObject({ paused: false });
+    expect((await getAudioEvidence(dashboardCloseTimerPage))?.source).toContain("/audio/kuroneko-playlist/");
+    await dashboardCloseTimerPage.getByRole("button", { name: "Return to dashboard" }).click();
+    const dashboardForClose = await waitForKuroneKoAppPage(browser, { label: "dashboard" });
+    await expect(dashboardForClose.getByLabel("KURONE-KO dashboard")).toBeVisible();
+    const dashboardProcess = await readProcessInfo(PROCESS_INFO_FILE);
+    if (dashboardProcess === null || !isTauriAppProcessInfo(dashboardProcess)) throw new Error("Expected process identity for native dashboard close");
+    logShutdownStage("nativeDashboard", "start", dashboardProcess);
+    await closeOwnedVisibleWindow(dashboardProcess);
+    await waitForShutdown(dashboardProcess, CDP_ENDPOINT);
+    logShutdownStage("nativeDashboard", "complete", dashboardProcess);
+
+    const dashboardForTimer = await relaunchForNativeClose();
+    await dashboardForTimer.getByRole("button", { name: "Start Session" }).click();
+    const timerPage = await waitForKuroneKoAppPage(browser, { label: "timer" });
+    await expect(timerPage.getByLabel("KURONE-KO focus timer; drag empty areas to move")).toBeVisible();
+    await prepareTimerForE2E(timerPage);
+    await timerPage.getByRole("button", { name: "Play Kurone-ko Playlist" }).click();
+    await expect.poll(() => getMusicState(timerPage)).toMatchObject({ enabled: true, isPlaying: true });
+    await expect.poll(() => getAudioEvidence(timerPage)).toMatchObject({ paused: false });
+    expect((await getAudioEvidence(timerPage))?.source).toContain("/audio/kuroneko-playlist/");
+    const timerProcess = await readProcessInfo(PROCESS_INFO_FILE);
+    if (timerProcess === null || !isTauriAppProcessInfo(timerProcess)) throw new Error("Expected process identity for native timer close");
+    logShutdownStage("nativeTimer", "start", timerProcess);
+    await closeOwnedVisibleWindow(timerProcess);
+    await waitForShutdown(timerProcess, CDP_ENDPOINT);
+    logShutdownStage("nativeTimer", "complete", timerProcess);
   });
 });
