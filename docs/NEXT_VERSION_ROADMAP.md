@@ -1,14 +1,12 @@
 # Kurone-ko Timer — Next Version Roadmap
 
-This document tracks the published baseline, the current unreleased development target, and proposed future improvements.
+This document records the published baseline and proposed future improvements.
 
 ## Current Baseline
 
-- Latest published/local release tag: `v1.1.0` — identity, UX polish, keyboard shortcuts, and window position sync.
-- Current development target: `v1.1.1` (unreleased). All application manifests identify this target; no release tag or publication is implied.
-- Windows installers are available for the published release as `.msi` and `.exe` assets.
-- CI runs the Vitest suite (177 tests) and TypeScript checks. Playwright E2E is not configured in CI.
-- The manual Windows release workflow builds installers and can attach them to an existing release.
+- Latest release: [v1.1.1](https://github.com/DevMPoveaCL/kurone-ko-timer/releases/tag/v1.1.1), with the Windows NSIS `.exe` installer.
+- Required PR CI passed (Vitest and TypeScript). Playwright E2E is not configured in CI.
+- Installed-app smoke checks passed for native close with actual playlist audio. The maintainer also confirmed physical Alt+F4 and Dashboard Exit manually, with no remaining app processes visible in Task Manager.
 
 ## v1.1.0 — Identity and UX Polish ✅
 
@@ -66,17 +64,9 @@ Goal: make the app feel more intentional, branded, and polished without changing
 - Builds: NSIS `.exe` and WiX `.msi` with branded icons.
 - Smoke tested via `npm run tauri dev`.
 
-## v1.1.1 — Shutdown Reliability (unreleased development target)
+## v1.1.1 — Shutdown Verification ✅
 
-Goal: ensure the application terminates completely without leaving lingering processes. The existing native shutdown hook passed debug, generated-release, and installed 1.1.1 verification; the intermittent 1.1.0 report's cause remains unproven.
-
-- **Native close authority**: Rust/Tauri handles close requests for either the Dashboard or Timer and exits the app, including music cleanup.
-- **Dashboard Exit**: the UI Exit action routes through native close logic.
-- **Verified debug behavior**: dashboard Exit and native Dashboard/Timer close passed all three focused Windows E2E paths with actual audio playback.
-- **Generated release target**: `target/release/kurone-ko.exe` was runtime-tested without the DEV E2E driver using real user settings/history and explicit consent. Native Timer close had actual playlist audio playing; the app and its tracked WebView descendants exited. Release dashboard `WM_CLOSE` also stopped the app and its children, but music evidence for that path was UI-only, not native Audio playback evidence.
-- **Installed 1.1.1 smoke**: Dashboard and Timer native close were tested on the installed app, each with actual audio (`paused=false`, `readyState=4`); playback advanced from `0.098` to `1.115` on Dashboard and from `0` to `0.836` on Timer. The app and tracked WebView descendants exited; the final check found no installed-app processes and no listener on port 9334. Settings/history SHA256 matched the verified backup. UI Exit and keyboard Alt+F4 were not tested in this installed check.
-- **Report and scope**: the intermittent 1.1.0 behavior was not reproduced, and its cause is not proven. No new production shutdown code was added as part of this verification; installed 1.1.1 smoke evidence does not establish the cause of the earlier report.
-- **E2E coverage**: shutdown harness and focused harness tests exist. The focused harness tests are separate from the normal Vitest suite; Playwright E2E is not part of CI.
+Shutdown verification is complete. The intermittent 1.1.0 report's cause remains unproven; no new production shutdown fix is claimed.
 
 ## v1.2.0 — Spotify Playlist Integration
 

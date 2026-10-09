@@ -40,7 +40,7 @@ The name comes from 黒猫 (kuroneko — "black cat" in Japanese), a symbol of q
 
 ## Install
 
-Download the latest `KURONE-KO_*_x64-setup.exe` from [Releases](https://github.com/DevMPoveaCL/Kurone-ko-Timer/releases).
+Download `KURONE-KO_*_x64-setup.exe` from the [v1.1.1 release](https://github.com/DevMPoveaCL/kurone-ko-timer/releases/tag/v1.1.1).
 
 Run the installer. A shortcut is created on your desktop and in the Start Menu.
 
@@ -80,8 +80,6 @@ Run the installer. A shortcut is created on your desktop and in the Start Menu.
 
 ## Development
 
-The current development target is **v1.1.1**, still unpublished; the latest published/local release tag remains **v1.1.0**. Native close was smoke-tested on the installed 1.1.1 app: Dashboard and Timer both had actual audio playing, and the app plus its tracked WebView descendants exited. The UI Exit action and keyboard Alt+F4 were not tested in this installed-app check. The earlier intermittent 1.1.0 report's cause remains unproven; no new production shutdown code was added for this verification.
-
 ### Prerequisites (developers only)
 
 - **Node.js** 18+ and npm
@@ -102,8 +100,6 @@ npm test               # 177 Vitest tests (unit and component suite)
 npx tsc --noEmit       # TypeScript strict check
 npm run test:e2e       # Playwright E2E (requires Tauri dev running)
 ```
-
-The shutdown E2E harness also has focused tests that are run separately from the normal `npm test` suite. CI currently runs Vitest and TypeScript checks; it does not run Playwright E2E.
 
 ---
 
