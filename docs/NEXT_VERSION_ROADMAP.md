@@ -1,13 +1,14 @@
 # Kurone-ko Timer — Next Version Roadmap
 
-This document captures proposed improvements for the next Kurone-ko Timer versions after `v1.0.0`.
+This document tracks the published baseline, the current unreleased development target, and proposed future improvements.
 
 ## Current Baseline
 
-- `v1.1.0` — Identity, UX polish, keyboard shortcuts, window position sync.
-- Windows installers are available in the GitHub Release as `.msi` and `.exe` assets.
-- CI validates tests (26 files, 175 tests) and TypeScript checks.
-- Manual Windows release workflow builds installers and can attach them to an existing release.
+- Latest published/local release tag: `v1.1.0` — identity, UX polish, keyboard shortcuts, and window position sync.
+- Current development target: `v1.1.1` (unreleased). All application manifests identify this target; no release tag or publication is implied.
+- Windows installers are available for the published release as `.msi` and `.exe` assets.
+- CI runs the Vitest suite (177 tests) and TypeScript checks. Playwright E2E is not configured in CI.
+- The manual Windows release workflow builds installers and can attach them to an existing release.
 
 ## v1.1.0 — Identity and UX Polish ✅
 
@@ -65,14 +66,17 @@ Goal: make the app feel more intentional, branded, and polished without changing
 - Builds: NSIS `.exe` and WiX `.msi` with branded icons.
 - Smoke tested via `npm run tauri dev`.
 
-## v1.1.1 — Shutdown Reliability ✅
+## v1.1.1 — Shutdown Reliability (unreleased development target)
 
-Goal: Ensure the application terminates completely without leaving lingering phantom processes.
+Goal: ensure the application terminates completely without leaving lingering processes. The existing native shutdown hook passed debug, generated-release, and installed 1.1.1 verification; the intermittent 1.1.0 report's cause remains unproven.
 
-- **Native Close Parity**: Closing either the Dashboard or the Timer natively (Alt+F4, X button) now fully terminates the app and stops music.
-- **Dashboard Exit Update**: The UI Exit button now routes cleanly through native close logic.
-- **E2E Observability**: Added automated Playwright regressions that prove CDP and the app process properly die on exit.
-- **Tauri Cache Fix**: Resolved a stale absolute path bug blocking E2E tests by clearing cargo cache.
+- **Native close authority**: Rust/Tauri handles close requests for either the Dashboard or Timer and exits the app, including music cleanup.
+- **Dashboard Exit**: the UI Exit action routes through native close logic.
+- **Verified debug behavior**: dashboard Exit and native Dashboard/Timer close passed all three focused Windows E2E paths with actual audio playback.
+- **Generated release target**: `target/release/kurone-ko.exe` was runtime-tested without the DEV E2E driver using real user settings/history and explicit consent. Native Timer close had actual playlist audio playing; the app and its tracked WebView descendants exited. Release dashboard `WM_CLOSE` also stopped the app and its children, but music evidence for that path was UI-only, not native Audio playback evidence.
+- **Installed 1.1.1 smoke**: Dashboard and Timer native close were tested on the installed app, each with actual audio (`paused=false`, `readyState=4`); playback advanced from `0.098` to `1.115` on Dashboard and from `0` to `0.836` on Timer. The app and tracked WebView descendants exited; the final check found no installed-app processes and no listener on port 9334. Settings/history SHA256 matched the verified backup. UI Exit and keyboard Alt+F4 were not tested in this installed check.
+- **Report and scope**: the intermittent 1.1.0 behavior was not reproduced, and its cause is not proven. No new production shutdown code was added as part of this verification; installed 1.1.1 smoke evidence does not establish the cause of the earlier report.
+- **E2E coverage**: shutdown harness and focused harness tests exist. The focused harness tests are separate from the normal Vitest suite; Playwright E2E is not part of CI.
 
 ## v1.2.0 — Spotify Playlist Integration
 
@@ -98,13 +102,11 @@ Goal: allow users to connect focus sessions with music while avoiding heavy bund
 - Playback control may require Spotify Premium depending on API usage.
 - External service dependency means some features may not work offline.
 
-## v1.3.0 — Personalization
+## v1.3.0 — Additional Personalization
 
-Goal: make Kurone-ko feel more personal without bloating the app.
+Custom focus/break durations, session goals, and preferences persistence are already implemented. Potential future personalization beyond those existing features:
 
-- Custom focus/break durations.
 - Optional session labels.
-- Lightweight preferences persistence.
 - Optional sound/theme settings.
 - Maintain simple defaults so the app still works immediately.
 
@@ -113,7 +115,7 @@ Goal: make Kurone-ko feel more personal without bloating the app.
 - Improve release notes template.
 - Add screenshots of the installed Windows app.
 - Consider signing Windows installers in the future.
-- Consider E2E testing later, but only after the core UI stabilizes.
+- E2E harness coverage exists, including shutdown scenarios; improve it as needed. Playwright E2E is not currently run by CI.
 - Audit final installer size if it grows beyond roughly 100–200 MB.
 
 ## Principles for Future Work
