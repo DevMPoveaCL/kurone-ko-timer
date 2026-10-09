@@ -158,9 +158,9 @@ The full saga is documented in the v1.0.0 section above. The TL;DR:
 
 **Solution**: `clampToMonitor()` queries `currentMonitor()` at runtime and constrains the calculated position so the full window stays visible. Applied in two places: when switching windows AND when dragging (via `onMoved` handler). The drag handler uses an 80ms debounce to avoid rapid snap-back flicker while the user is actively dragging against an edge.
 
-### Exit button: destroy, don't close
+### Historical exit implementation: destroy (superseded)
 
-Added a ✕ button in the dashboard top-right for clean app termination. The implementation uses `window.destroy()` rather than `window.close()` because `close()` emits a cancelable event that might be intercepted. `destroy()` forces immediate termination. The `onCloseRequested` handler in `App.tsx` stops music before the window closes, ensuring no orphaned audio processes.
+The original dashboard Exit button used `window.destroy()` to avoid a cancelable close event, with frontend cleanup in `onCloseRequested`. This recommendation is historical and superseded: native close requests are now owned by Rust/Tauri, which exits the application when either app window closes. Dashboard Exit routes through native close; native lifecycle handling is the shutdown authority.
 
 ### Layout polish: `inert` cascade
 
@@ -200,13 +200,15 @@ Applied `inert` to dashboard shell to block Tab focus on background during modal
 
 The browser's `window.addEventListener("focus")` doesn't fire reliably inside Tauri's webview. When the OS gives focus to a Tauri window, the webview inside it may not get the memo. Use `getCurrentWindow().onFocusChanged()` — a Tauri-specific event that always fires when the native window receives or loses focus.
 
-### Shutdown Lingering Process (Alt+F4 bug)
+### Shutdown Lingering Process (historical report and current implementation)
 
-**Problem**: Pressing Alt+F4 or natively closing the visible window left the app process and background music running. The hidden sibling window (`timer` or `dashboard`) kept the Tauri process alive. Frontend JS cleanup was per-webview and couldn't reliably stop the other window's audio.
+**Reported problem**: Pressing Alt+F4 or natively closing the visible window was reported to leave the app process and background music running because the hidden sibling window could keep the Tauri process alive. Current debug testing has not reproduced a production shutdown failure; no production lifecycle bug was changed as part of the release reconciliation.
 
-**Solution**: Made Rust/Tauri the authoritative shutdown owner. Used `on_window_event` and `WindowEvent::CloseRequested` to call `app_handle().exit(0)` when either app window closes. Kept dashboard Exit and JS cleanup as defense-in-depth, routing dashboard Exit directly through `getCurrentWindow().close()`.
+**Current implementation**: Rust/Tauri is the authoritative shutdown owner. `on_window_event` handles `WindowEvent::CloseRequested` and exits the app when either app window closes. Dashboard Exit routes through the native close path. Focused Windows E2E checks passed for dashboard Exit and native Dashboard/Timer close with real playlist playback active.
 
-**Lesson**: Two-window Tauri apps don't exit automatically when one window closes. Native lifecycle events in Rust are the only bulletproof way to guarantee shutdown and avoid phantom processes.
+**Verification evidence and limits**: Debug checks passed for dashboard Exit and native Dashboard/Timer close with actual audio. The generated `target/release/kurone-ko.exe` was runtime-tested without the DEV E2E driver using real user settings/history and explicit consent; native Timer close stopped the app and its tracked WebView descendants while music was active. Release Dashboard `WM_CLOSE` also stopped the app and its children, but music evidence for that path was UI-only, not actual Audio playback evidence.
+
+The installed `KURONE-KO/kurone-ko.exe` version 1.1.1 was then smoke-tested. Native Dashboard close had actual Audio playing (`paused=false`, `readyState=4`), with `currentTime` advancing from `0.098` to `1.115`; native Timer close likewise had actual Audio playing and advancing from `0` to `0.836`. In both cases, the app and its tracked WebView descendants exited. Final inspection found zero installed-app processes and no listener on port 9334. Settings/history SHA256 matched the verified backup. This check exercised native close (`WM_CLOSE`), not the dashboard UI Exit action or keyboard Alt+F4. The intermittent 1.1.0 report was not reproduced, and its cause remains unproven; no new production shutdown code was added for this verification. The `1.1.1` development target remains unpublished.
 
 ### Tauri Cargo Cache & Stale Paths
 
