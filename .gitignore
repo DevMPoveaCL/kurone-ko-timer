@@ -28,6 +28,7 @@ src-tauri/target/
 .vite/
 coverage/
 test-results/
+.playwright-state/
 playwright-report/
 
 # Editor directories and files

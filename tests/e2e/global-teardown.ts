@@ -1,15 +1,13 @@
-import { cleanupProcessInfoFile, readProcessInfo, stopProcessTree } from "./shutdown-observability";
-
-const PID_FILE = "test-results/kurone-ko-tauri-dev.json";
+import { cleanupProcessInfoFile, PROCESS_INFO_FILE, readProcessInfo, stopOwnedLauncher } from "./shutdown-observability";
 
 export default async function globalTeardown() {
-  const processInfo = await readProcessInfo(PID_FILE);
+  const processInfo = await readProcessInfo(PROCESS_INFO_FILE);
 
   if (processInfo === null) {
     return;
   }
 
-  await stopProcessTree(processInfo.pid);
+  await stopOwnedLauncher(processInfo);
 
-  await cleanupProcessInfoFile(PID_FILE);
+  await cleanupProcessInfoFile(PROCESS_INFO_FILE);
 }
