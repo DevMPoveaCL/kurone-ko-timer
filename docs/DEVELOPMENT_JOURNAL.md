@@ -206,13 +206,11 @@ The browser's `window.addEventListener("focus")` doesn't fire reliably inside Ta
 
 **Current implementation**: Rust/Tauri is the authoritative shutdown owner. `on_window_event` handles `WindowEvent::CloseRequested` and exits the app when either app window closes. Dashboard Exit routes through the native close path. Focused Windows E2E checks passed for dashboard Exit and native Dashboard/Timer close with real playlist playback active.
 
-**Verification evidence and limits**: Debug checks passed for dashboard Exit and native Dashboard/Timer close with actual audio. The generated `target/release/kurone-ko.exe` was runtime-tested without the DEV E2E driver using real user settings/history and explicit consent; native Timer close stopped the app and its tracked WebView descendants while music was active. Release Dashboard `WM_CLOSE` also stopped the app and its children, but music evidence for that path was UI-only, not actual Audio playback evidence.
-
-The installed `KURONE-KO/kurone-ko.exe` version 1.1.1 was then smoke-tested. Native Dashboard close had actual Audio playing (`paused=false`, `readyState=4`), with `currentTime` advancing from `0.098` to `1.115`; native Timer close likewise had actual Audio playing and advancing from `0` to `0.836`. In both cases, the app and its tracked WebView descendants exited. Final inspection found zero installed-app processes and no listener on port 9334. Settings/history SHA256 matched the verified backup. This check exercised native close (`WM_CLOSE`), not the dashboard UI Exit action or keyboard Alt+F4. The intermittent 1.1.0 report was not reproduced, and its cause remains unproven; no new production shutdown code was added for this verification. The `1.1.1` development target remains unpublished.
+**Verification evidence and release closeout**: Debug and installed-app verification passed for native close with actual playlist audio. Later manual checks also confirmed physical Alt+F4 and Dashboard Exit, with no visible app processes remaining. Release v1.1.1 was published; PRs #11–13 merged with green CI, and issue #10 was closed. The intermittent 1.1.0 report's cause remains unproven, and no new production shutdown fix is claimed.
 
 ### Tauri Cargo Cache & Stale Paths
 
-During E2E testing, Tauri refused to launch due to a missing permissions file: `app_hide.toml (os error 3)`. The build was looking at an old absolute path (`E:\...\Kurone-ko\...`) instead of the current workspace (`kurone-ko-timer`). 
+During E2E testing, Tauri refused to launch due to a missing permissions file: `app_hide.toml (os error 3)`. The build was looking at an outdated absolute workspace path instead of the current workspace.
 **Fix**: `cargo clean` inside `src-tauri` forced regeneration of the permissions path mappings. Always clean cargo cache after renaming or moving a Tauri 2 workspace.
 
 ---

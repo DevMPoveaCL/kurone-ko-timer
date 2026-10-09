@@ -1,50 +1,52 @@
 # ODD: Shutdown and Release Reconciliation
 
 ## Objective
-Audit intermittent Windows shutdown with real playlist audio; reconcile roadmap and versions without speculative lifecycle changes. Preserve user settings/history and two-window architecture.
+Audit Windows shutdown with real playlist audio and reconcile roadmap and versions without speculative lifecycle changes. Preserve user settings/history and the two-window architecture.
 
 ## Scope and configuration
-- Branch: `fix/shutdown-release-reconciliation`; base `7bd0e5b`.
-- Strict TDD: persisted project capability Engram #625; Vitest, Cargo and Playwright.
-- Delivery: ask-on-risk, user selected stacked-to-main; user accepted size exception for the coherent observer/harness unit. Actual first unit: 893 additions / 54 deletions including adapters and tests.
-- User authorized local commits, installer replacement, backup and smoke with real data. No push, PR creation, tag or publication authorized.
-- Preserve pre-existing `.codegraph/`.
+- Implementation branch: `fix/shutdown-release-reconciliation`; base `7bd0e5b`.
+- Strict TDD: existing project configuration; Vitest, Cargo and Playwright.
+- Delivery: stacked-to-main; the maintainer accepted the coherent harness size exception (893 additions / 54 deletions).
+- Subsequent maintainer approvals covered commits, data-preserving installation, PRs, merge and publication.
+- Preserve pre-existing local index files; do not include generated installers or private host details in repository changes.
 
-## Tasks
+## Completed work
 ### SHUT-1 — Trustworthy shutdown evidence
-Status: complete; committed `3433fb5`; independent post-commit checks passed.
-Route: delegated workers/verifiers; multi-file and execution triggers.
-- [x] Track actual app identity and scoped WebView ancestry, not only launcher/CDP.
-- [x] Real playlist playback and native-close helper with PID/path/creation/HWND guards.
-- [x] Fixture metadata outside cleaned results; guarded cleanup; isolated CDP.
-- [x] Debug dashboard Exit and native dashboard/timer regression pass.
-- [x] Focused harness tests 21/21, frontend 177, TypeScript clean.
-- [x] Complete independent post-commit validation: Vitest177, focused harness21, TypeScript, Playwright2 including all three shutdown stages; no fixture survivors.
-Native review assessment unavailable; START rejected `candidate-target-projection-drift` before lineage creation, no mutation. No native approval exists. Independent risk-gated verification is used; native authority remains untouched.
+Status: complete; commit `3433fb5`, merged in PR #11.
+Route: delegated implementation and independent verification.
+- [x] Track actual application identity and scoped WebView ancestry.
+- [x] Assert real playlist playback before close; guard native window selection and fixture cleanup.
+- [x] Persist fixture ownership independently from test results and isolate the test endpoint.
+- [x] Verify debug dashboard Exit and native dashboard/timer close.
+Checks: 177 frontend tests, 21 focused harness tests, TypeScript and targeted Playwright passed independently. Native review could not start; no native approval or receipt is claimed.
 
 ### SHUT-2 — Release and installed verification
-Status: verified; production lifecycle unchanged.
-Route: delegated investigation/build/installed smoke.
-- [x] Generated release 1.1.1 and verified real Audio/time progress before timer native close; app and 8 WebView descendants exited.
-- [x] Built unsigned NSIS 1.1.1; generated template verified, stale checked-in template not used.
-- [x] Backup both app-data roots, file-by-file SHA256 verification (3 Roaming files, 604 Local files).
-- [x] User completed interactive upgrade preserving data; installed executable and registry 1.1.1.
-- [x] Installed native dashboard and timer close with actual Audio paused false/readyState 4/time advancing; all tracked processes exited.
-- [x] Final installed app process count 0; test port 9334 listeners 0.
-- [x] Settings/history unchanged; snapshot differs ONLY `savedAt`, independently inspected after final smoke.
-Limits: old installed 1.1.0 intermittent defect not reproduced; no new production fix is claimed. Installed physical Alt+F4 and installed UI Exit not directly exercised. Debug UI Exit passed with actual audio.
+Status: complete; production lifecycle unchanged.
+Route: delegated build and runtime verification, followed by maintainer manual testing.
+- [x] Verify generated release and installed 1.1.1 native close with actual audio playback and scoped process termination.
+- [x] Back up and verify application data before the interactive upgrade.
+- [x] Preserve settings/history; the timer snapshot changed only its save timestamp.
+- [x] Confirm no surviving application processes after the installed smoke.
+- [x] Record maintainer confirmation of physical Alt+F4 and dashboard Exit, with no remaining processes visible in Windows Task Manager.
+Limit: the original intermittent 1.1.0 cause was not reproduced; no newly implemented production shutdown fix is claimed.
 
 ### REL-1 — Versions and project documentation
-Status: complete; committed `2eecc5d`; independent checks passed (Vitest177, Cargo5, TypeScript, manifest readback, committed diff check).
-Route: delegated writer.
-- [x] All package/Tauri/Cargo manifest and app-lock versions 1.1.1.
-- [x] Roadmap reconciled completed preferences/durations and existing E2E; CI limits accurate.
-- [x] Journal's historical destroy recommendation superseded.
-- [x] README/roadmap/journal reflect installed and release evidence and limits; 1.1.1 remains unpublished.
-Checks: manifest readback, Vitest177, Cargo5, TypeScript and build successful; docs readback and diff check passed.
+Status: complete; commit `2eecc5d`, merged in PR #12. Initial continuity record `9c17eae` merged in PR #13.
+Route: delegated documentation and manifest updates.
+- [x] Align application manifests and lock entries to 1.1.1.
+- [x] Reconcile completed roadmap items and superseded shutdown guidance.
+- [x] Verify manifests, 177 frontend tests, 5 Rust tests, TypeScript and release build.
+- [x] Integrate PRs #11–13 with successful required CI; close issue #10.
+- [x] Publish [v1.1.1](https://github.com/DevMPoveaCL/kurone-ko-timer/releases/tag/v1.1.1) from `8eb6aaf` with the verified unsigned NSIS installer.
 
-## Verification and preservation evidence
-Installed nativeDashboard audio time 0.098 -> 1.115 seconds; nativeTimer 0 -> 0.836 seconds, both paused false/readyState4. Backup: `C:/Users/dream/Documents/KURONE-KO-backup-before-1.1.1-20261008-205456`. Installer: `src-tauri/target/release/bundle/nsis/KURONE-KO_1.1.1_x64-setup.exe`, unsigned. User upgrade complete; live settings/history match backup. No broad process kills or unrelated Chrome/Vite termination.
+### DOC-1 — Publication closeout
+Status: in progress.
+Route: delegated writer; four existing documentation files require coordinated reconciliation.
+- [x] Remove stale unpublished status without changing the README's public-facing structure.
+- [x] Record published release and completed manual verification in roadmap/journal.
+- [x] Remove personal backup/workspace details from affected documentation.
+- [ ] Verify the bounded documentation diff and integrate its documentation-only PR with successful CI.
+Checks: documentation readback, privacy scan, diff check and required GitHub CI. No application or installer changes.
 
 ## Next step
-Implementation, installation and verification are complete within the stated limits. Local units: `3433fb5` harness (size exception), `2eecc5d` versions/docs. This continuity document is a separate documentation unit. Suggested future delivery slices follow that order; no PRs were opened and main remains untouched. Next human decision: push/PR or publish v1.1.1; neither is authorized. Native review was unavailable before authority creation; there is no receipt/approval. Physical Alt+F4 and installed UI Exit remain untested. The original intermittent 1.1.0 cause remains unproven, not a claimed new production fix.
+Complete DOC-1 and close this feature. Further functionality requires a separate ODD scope. Release publication and installed shutdown verification are already complete; native review authority was never created.
