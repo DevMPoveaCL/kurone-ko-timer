@@ -40,13 +40,13 @@ Route: delegated documentation and manifest updates.
 - [x] Publish [v1.1.1](https://github.com/DevMPoveaCL/kurone-ko-timer/releases/tag/v1.1.1) from `8eb6aaf` with the verified unsigned NSIS installer.
 
 ### DOC-1 — Publication closeout
-Status: in progress.
-Route: delegated writer; four existing documentation files require coordinated reconciliation.
+Status: complete; publication documentation integrated in PR #14 with successful required CI.
+Route: delegated writer and independent documentation/privacy verification.
 - [x] Remove stale unpublished status without changing the README's public-facing structure.
 - [x] Record published release and completed manual verification in roadmap/journal.
 - [x] Remove personal backup/workspace details from affected documentation.
-- [ ] Verify the bounded documentation diff and integrate its documentation-only PR with successful CI.
+- [x] Verify the bounded documentation diff and integrate its documentation-only PR with successful CI.
 Checks: documentation readback, privacy scan, diff check and required GitHub CI. No application or installer changes.
 
 ## Next step
-Complete DOC-1 and close this feature. Further functionality requires a separate ODD scope. Release publication and installed shutdown verification are already complete; native review authority was never created.
+This feature is closed. Further functionality requires a separate ODD scope. Release publication, installed shutdown verification and documentation closeout are complete; native review authority was never created.
